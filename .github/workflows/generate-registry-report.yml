@@ -1,0 +1,46 @@
+name: Generate Registry Report
+
+on:
+  schedule:
+    - cron: "0 2 * * 0"  # Weekly on Sunday at 2am UTC
+  workflow_dispatch:     # Allow manual triggering
+
+jobs:
+  generate-report:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up mise
+        uses: jdx/mise-action@v2
+        with:
+          cache: true
+
+      - name: Generate registry report
+        run: |
+          python scripts/generate_report.py \
+            --output registry-report.md
+
+      - name: Check for changes
+        id: check-diff
+        run: |
+          if git diff --quiet registry-report.md; then
+            echo "changed=false" >> $GITHUB_OUTPUT
+          else
+            echo "changed=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Commit and push report if changed
+        if: steps.check-diff.outputs.changed == 'true'
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add registry-report.md
+          git commit -m "chore: update registry report"
+          git push
